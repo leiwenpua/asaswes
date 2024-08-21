@@ -46,8 +46,7 @@ class SequenceAssemblyApp(tk.Tk):
         container.pack(fill="both", expand=True)
 
         # Loop through the pages and initialize each one
-        for page in (
-        MainPage, ConfigurationPage, ProgramPage, AboutPage, InstallationPage, GettingStartedPage, WorkflowPage, IssuesPage):
+        for page in (MainPage, ConfigurationPage, ProgramPage, AboutPage, InstallationPage, GettingStartedPage, WorkflowPage, IssuesPage):
 
             page_name = page.__name__  # Get the class name as a string
             frame = page(parent=container, controller=self)  # Create an instance of the page
@@ -163,9 +162,69 @@ class MainPage(tk.Frame):
     def start_analysis_thread(self):
         # Clear the log area
         self.log_text.delete('1.0', tk.END)
+
+        # Check if all required fields are filled
+        if not self.validate_inputs():
+            return  # Exit the function if inputs are not valid
+
+        # Check if program locations are filled and valid
+        if not self.validate_program_locations():
+            return  # Exit the function if program locations are not valid
+
         # Start the analysis in a new thread
         analysis_thread = threading.Thread(target=self.start_analysis)
         analysis_thread.start()
+
+    def validate_inputs(self):
+        # Check if forward read sequence file entry is filled
+        if not self.forward_read.entry.get().strip():
+            tk.messagebox.showerror("Input Error", "Please select the forward read sequence file.")
+            return False
+
+        # Check if reverse read sequence file entry is filled
+        if not self.reverse_read.entry.get().strip():
+            tk.messagebox.showerror("Input Error", "Please select the reverse read sequence file.")
+            return False
+
+        # Check if reference sequence file entry is filled
+        if not self.reference_sequence.entry.get().strip():
+            tk.messagebox.showerror("Input Error", "Please select the reference genome file.")
+            return False
+
+        # Check if output directory entry is filled
+        if not self.output_directory.entry.get().strip():
+            tk.messagebox.showerror("Input Error", "Please select an output directory.")
+            return False
+
+        # If all fields are filled, return True
+        return True
+
+    def validate_program_locations(self):
+        # Access the ProgramPage instance from the controller
+        program_page = self.controller.pages["ProgramPage"]
+
+        # Check if FASTQC location is filled
+        if not program_page.fastqc_location.entry.get().strip():
+            tk.messagebox.showerror("Input Error", "Please specify the location of the FASTQC program.")
+            return False
+
+        # Check if GATK location is filled
+        if not program_page.gatk_location.entry.get().strip():
+            tk.messagebox.showerror("Input Error", "Please specify the location of the GATK program.")
+            return False
+
+        # Check if BWA location is filled
+        if not program_page.bwa_location.entry.get().strip():
+            tk.messagebox.showerror("Input Error", "Please specify the location of the BWA program.")
+            return False
+
+        # Check if ANNOVAR location is filled
+        if not program_page.annovar_location.entry.get().strip():
+            tk.messagebox.showerror("Input Error", "Please specify the location of the ANNOVAR program.")
+            return False
+
+        # If all program locations are filled, return True
+        return True
 
     def start_analysis(self):
         try:
@@ -221,7 +280,6 @@ class MainPage(tk.Frame):
                 self.log_text.insert(tk.END,
                                      f"Error: Reference sequence file {reference_sequence_path} is not in the output directory {output_directory}.\n")
                 return  # Exit the function if the file is not found
-
 
             # FastQC Analysis
             try:
@@ -801,6 +859,7 @@ class MainPage(tk.Frame):
                     optional_args_base_recal,  # Dictionary of optional arguments
                     log_function  # Function to log messages during the process
                 )
+                
 
                 # Log the result of the BaseRecalibrator process
                 self.log_text.insert(tk.END, base_recal_result + "\n")
@@ -816,7 +875,7 @@ class MainPage(tk.Frame):
 
                 # Retrieve the output path for the recalibrated BAM file and the BQSR recalibration file
                 applybqsr_output = os.path.join(output_directory, config_page.applybqsr_output.get())
-                bqsr_recal_file = config_page.base_recal_output.get()
+                bqsr_recal_file = os.path.join(output_directory, config_page.base_recal_output.get())
 
                 # Collect optional arguments for the ApplyBQSR process
                 optional_args_applybqsr = {
@@ -1194,10 +1253,11 @@ class MainPage(tk.Frame):
             # Indicate the completion of the analysis
             self.log_text.insert(tk.END, "Analysis completed.\n")
             self.log_text.yview(tk.END)  # Scroll the log to the end to show the latest message
+
         except Exception as e:
             # Handle any unexpected exceptions that occur during the process
             self.log_text.insert(tk.END, f"Unexpected error: {str(e)}\n")
-            self.update_idletasks()  # Update the GUI to show the error message immediately
+            self.update_idletasks() # Update the GUI to show the error message immediately
 
     def create_browse_section(self, label_text, browse_command):
         # Create a frame to contain the label, entry box, and browse button
@@ -1296,20 +1356,6 @@ class ConfigurationPage(tk.Frame):
         # Add a label to the scrollable frame
         label = tk.Label(scrollable_frame, text="Configuration Page", font=("Arial", 24))
         label.pack(pady=10)
-
-        '''
-        # Create a frame for Save and Load buttons
-        button_frame = ttk.Frame(self)
-        button_frame.pack(pady=20)
-
-        # Save button to save the current configuration as default
-        save_button = ttk.Button(button_frame, text="Save as Default", command=self.save_configuration)
-        save_button.pack(side="left", padx=10)
-
-        # Load button to load the default configuration
-        load_button = ttk.Button(button_frame, text="Load Default", command=self.load_configuration)
-        load_button.pack(side="left", padx=10)
-        '''
 
         # FastqToSam (Picard) section
         self.create_picard_section(scrollable_frame, "FastqToSam (Picard)", [
@@ -1501,6 +1547,7 @@ class ConfigurationPage(tk.Frame):
                 ("SortSam For Marked Duplicate Create MD5 File", False, True)
             ])
         ])
+
 
         # BaseRecalibrator section
         self.create_picard_section(scrollable_frame, "BaseRecalibrator (Picard)", [
@@ -1722,620 +1769,8 @@ class ConfigurationPage(tk.Frame):
                 ("Remove Intermediate Files", False, True)
             ])
         ])
-        '''
-    def save_configuration(self):
-        config = {
-            # FastqToSam
-            'fastq_to_sam_output': self.fastq_to_sam_output.get(),
-            'sample_name': self.sample_name.get(),
-            'platform': self.platform.get(),
-            'read_group_name': self.read_group_name.get(),
-            'library_name': self.library_name.get(),
-            'description': self.description.get(),
-            'sort_order': self.fastqtosam_sort_order.get(),
-            'max_q': self.max_q.get(),
-            'min_q': self.min_q.get(),
-            'use_sequential_fastqs': str(self.use_sequential_fastqs.get()),
-            'allow_and_ignore_empty_lines': str(self.allow_and_ignore_empty_lines.get()),
-            'platform_model': self.platform_model.get(),
-            'platform_unit': self.platform_unit.get(),
-            'predicted_insert_size': self.predicted_insert_size.get(),
-            'program_group': self.program_group.get(),
-            'quality_format': self.quality_format.get(),
-            'run_date': self.run_date.get(),
-            'sequencing_center': self.sequencing_center.get(),
-            # MarkIlluminaAdapters
-            'mark_illumina_metrics': self.mark_illumina_metrics.get(),
-            'mark_illumina_output': self.mark_illumina_output.get(),
-            'adapter_truncation_length': self.adapter_truncation_length.get(),
-            'adapters': self.adapters.get(),
-            'five_prime_adapter': self.five_prime_adapter.get(),
-            'max_error_rate_pe': self.max_error_rate_pe.get(),
-            'max_error_rate_se': self.max_error_rate_se.get(),
-            'min_match_bases_pe': self.min_match_bases_pe.get(),
-            'min_match_bases_se': self.min_match_bases_se.get(),
-            'num_adapters_to_keep': self.num_adapters_to_keep.get(),
-            'three_prime_adapter': self.three_prime_adapter.get(),
-            # SamToFastq
-            'sam_to_fastq_output': self.sam_to_fastq_output.get(),
-            'clipping_action': self.clipping_action.get(),
-            'clipping_attribute': self.clipping_attribute.get(),
-            'clipping_min_length': self.clipping_min_length.get(),
-            'include_non_pf_reads': self.include_non_pf_reads.get(),
-            'include_non_primary_alignments': self.include_non_primary_alignments.get(),
-            'interleave': self.interleave.get(),
-            'quality': self.quality.get(),
-            'read1_max_bases_to_write': self.read1_max_bases_to_write.get(),
-            'read1_trim': self.read1_trim.get(),
-            'read2_max_bases_to_write': self.read2_max_bases_to_write.get(),
-            'read2_trim': self.read2_trim.get(),
-            'rg_tag': self.rg_tag.get(),
-            # BWA
-            'index_algorithm': self.index_algorithm.get(),
-            'threads': self.threads.get(),
-            # Create Sequence Dictionary
-            'genome_assembly': self.genome_assembly.get(),
-            'num_sequences': self.number_of_sequences.get(),
-            'species': self.species.get(),
-            'truncate_names_at_whitespace': str(self.truncate_names_at_whitespace.get()),
-            'uri': self.uri.get(),
-            # MergeBamAlignment
-            'merge_align_bam_output': self.merge_align_bam_output.get(),
-            'add_mate_cigar': self.add_mate_cigar.get(),
-            'aligned_reads_only': self.aligned_reads_only.get(),
-            'aligner_proper_pair_flags': self.aligner_proper_pair_flags.get(),
-            'attributes_to_remove': self.attributes_to_remove.get(),
-            'attributes_to_retain': self.attributes_to_retain.get(),
-            'attributes_to_reverse': self.attributes_to_reverse.get(),
-            'attributes_to_reverse_complement': self.attributes_to_reverse_complement.get(),
-            'clip_adapters': self.clip_adapters.get(),
-            'clip_overlapping_reads': self.clip_overlapping_reads.get(),
-            'expected_orientations': self.expected_orientations.get(),
-            'include_secondary_alignments': self.include_secondary_alignments.get(),
-            'mergebamalignment_is_bisulfite_sequence': self.mergebamalignment_is_bisulfite_sequence.get(),
-            'matching_dictionary_tags': self.matching_dictionary_tags.get(),
-            'max_insertions_or_deletions': self.max_insertions_or_deletions.get(),
-            'min_unclipped_bases': self.min_unclipped_bases.get(),
-            'primary_alignment_strategy': self.primary_alignment_strategy.get(),
-            'program_group_command_line': self.program_group_command_line.get(),
-            'program_group_name': self.program_group_name.get(),
-            'program_group_version': self.program_group_version.get(),
-            'program_record_id': self.program_record_id.get(),
-            'read1_aligned_bam': self.read1_aligned_bam.get(),
-            'read1_trim': self.read1_trim.get(),
-            'read2_aligned_bam': self.read2_aligned_bam.get(),
-            'read2_trim': self.read2_trim.get(),
-            'mergebamalignment_sort_order': self.mergebamalignment_sort_order.get(),
-            'unmap_contaminant_reads': self.unmap_contaminant_reads.get(),
-            'unmapped_read_strategy': self.unmapped_read_strategy.get(),
-            # SortSam For Merged BAM
-            'sortsam_for_merged_bam_sort_order': self.sortsam_for_merged_bam_sort_order.get(),
-            'sortsam_for_merged_bam_output': self.sortsam_for_merged_bam_output.get(),
-            'sortsam_for_merged_bam_create_index': self.sortsam_for_merged_bam_create_index.get(),
-            'sortsam_for_merged_bam_create_md5_file': self.sortsam_for_merged_bam_create_md5_file.get(),
-            # SetNmMdAndUqTags
-            'setnmmduqtags_output': self.setnmmduqtags_output.get(),
-            'is_bisulfite_sequence': self.setnmmduqtags_is_bisulfite_sequence.get(),
-            'set_only_uq': self.set_only_uq.get(),
-            'create_index': self.setnmmduqtags_create_index.get(),
-            'create_md5_file': self.setnmmduqtags_create_md5_file.get(),
-            # MarkDuplicates
-            'metrics_file': self.metrics_file.get(),
-            'mark_duplicates_output': self.mark_duplicates_output.get(),
-            'assume_sort_order': self.assume_sort_order.get(),
-            'barcode_tag': self.barcode_tag.get(),
-            'clear_dt': self.clear_dt.get(),
-            'comment': self.markduplicates_comment.get(),
-            'duplicate_scoring_strategy': self.duplicate_scoring_strategy.get(),
-            'max_file_handles_for_read_ends_map': self.max_file_handles_for_read_ends_map.get(),
-            'max_optical_duplicate_set_size': self.max_optical_duplicate_set_size.get(),
-            'max_sequences_for_disk_read_ends_map': self.max_sequences_for_disk_read_ends_map.get(),
-            'optical_duplicate_pixel_distance': self.optical_duplicate_pixel_distance.get(),
-            'program_group_command_line': self.program_group_command_line.get(),
-            'program_group_name': self.program_group_name.get(),
-            'program_group_version': self.program_group_version.get(),
-            'program_record_id': self.program_record_id.get(),
-            'read_name_regex': self.read_name_regex.get(),
-            'read_one_barcode_tag': self.read_one_barcode_tag.get(),
-            'read_two_barcode_tag': self.read_two_barcode_tag.get(),
-            'sorting_collection_size_ratio': self.sorting_collection_size_ratio.get(),
-            'tag_duplicate_set_members': self.tag_duplicate_set_members.get(),
-            'tagging_policy': self.tagging_policy.get(),
-            'markduplicates_create_index': self.markduplicates_create_index.get(),
-            'markduplicates_create_md5_file': self.markduplicates_create_md5_file.get(),
-            # SortSam for Marked Duplicate BAM Process
-            'sortsam_for_marked_duplicate_sort_order': self.sortsam_for_marked_duplicate_sort_order.get(),
-            'sortsam_for_marked_duplicate_output': self.sortsam_for_marked_duplicate_output.get(),
-            'sortsam_for_marked_duplicate_create_index': self.sortsam_for_marked_duplicate_create_index.get(),
-            'sortsam_for_marked_duplicate_create_md5_file': self.sortsam_for_marked_duplicate_create_md5_file.get(),
-            # BaseRecalibrator
-            'base_recal_output': self.base_recal_output.get(),
-            'base_recal_known_sites': self.base_recal_known_sites.get(),
-            'bqsr-baq-gap-open-penalty': self.bqsr_baq_gap_open_penalty.get(),
-            'cloud-index-prefetch-buffer': self.cloud_index_prefetch_buffer.get(),
-            'cloud-prefetch-buffer': self.cloud_prefetch_buffer.get(),
-            'default-base-qualities': self.default_base_qualities.get(),
-            'deletions-default-quality': self.deletions_default_quality.get(),
-            'disable-bam-index-caching': str(self.disable_bam_index_caching.get()).lower(),
-            'gcs-max-retries': self.gcs_max_retries.get(),
-            'indels-context-size': self.indels_context_size.get(),
-            'insertions-default-quality': self.insertions_default_quality.get(),
-            'interval-merging-rule': self.interval_merging_rule.get(),
-            'intervals': self.intervals.get(),
-            'low-quality-tail': self.low_quality_tail.get(),
-            'maximum-cycle-value': self.maximum_cycle_value.get(),
-            'mismatches-context-size': self.mismatches_context_size.get(),
-            'mismatches-default-quality': self.mismatches_default_quality.get(),
-            'preserve-qscores-less-than': self.preserve_qscores_less_than.get(),
-            'quantizing-levels': self.quantizing_levels.get(),
-            'use-original-qualities': str(self.use_original_qualities.get()).lower(),
-            # ApplyBQSR
-            'applybqsr_output': self.applybqsr_output.get(),
-            'applybqsr_cloud_index_prefetch_buffer': self.applybqsr_cloud_index_prefetch_buffer.get(),
-            'applybqsr_cloud_prefetch_buffer': self.applybqsr_cloud_prefetch_buffer.get(),
-            'applybqsr_disable_bam_index_caching': str(self.applybqsr_disable_bam_index_caching.get()).lower(),
-            'emit-original-quals': str(self.applybqsr_emit_original_quals.get()).lower(),
-            'gcs-max-retries': self.applybqsr_gcs_max_retries.get(),
-            'global-qscore-prior': self.applybqsr_global_qscore_prior.get(),
-            'interval-merging-rule': self.applybqsr_interval_merging_rule.get(),
-            'intervals': self.applybqsr_intervals.get(),
-            'preserve-qscores-less-than': self.applybqsr_preserve_qscores_less_than.get(),
-            'quantize-quals': self.applybqsr_quantize_quals.get(),
-            'use-original-qualities': str(self.applybqsr_use_original_qualities.get()).lower(),
-            # HaplotypeCaller
-            'haplotypecaller_output': self.haplotypecaller_output.get(),
-            'activity-profile-out': self.haplotypecaller_activity_profile_out.get(),
-            'alleles': self.haplotypecaller_alleles.get(),
-            'annotate-with-num-discovered-alleles': self.haplotypecaller_annotate_with_num_discovered_alleles.get(),
-            'annotation': self.haplotypecaller_annotation.get(),
-            'annotation-group': self.haplotypecaller_annotation_group.get(),
-            'annotations-to-exclude': self.haplotypecaller_annotations_to_exclude.get(),
-            'assembly-region-out': self.haplotypecaller_assembly_region_out.get(),
-            'base-quality-score-threshold': self.haplotypecaller_base_quality_score_threshold.get(),
-            'cloud-index-prefetch-buffer': self.haplotypecaller_cloud_index_prefetch_buffer.get(),
-            'cloud-prefetch-buffer': self.haplotypecaller_cloud_prefetch_buffer.get(),
-            'contamination-fraction-to-filter': self.haplotypecaller_contamination_fraction_to_filter.get(),
-            'correct-overlapping-quality': self.haplotypecaller_correct_overlapping_quality.get(),
-            'dbsnp': self.haplotypecaller_dbsnp.get(),
-            'disable-bam-index-caching': self.haplotypecaller_disable_bam_index_caching.get(),
-            'disable-sequence-dictionary-validation': self.haplotypecaller_disable_sequence_dictionary_validation.get(),
-            'founder-id': self.haplotypecaller_founder_id.get(),
-            'gcs-max-retries': self.haplotypecaller_gcs_max_retries.get(),
-            'gcs-project-for-requester-pays': self.haplotypecaller_gcs_project_for_requester_pays.get(),
-            'graph-output': self.haplotypecaller_graph_output.get(),
-            'heterozygosity': self.haplotypecaller_heterozygosity.get(),
-            'heterozygosity-stdev': self.haplotypecaller_heterozygosity_stdev.get(),
-            'indel-heterozygosity': self.haplotypecaller_indel_heterozygosity.get(),
-            'interval-merging-rule': self.haplotypecaller_interval_merging_rule.get(),
-            'intervals': self.haplotypecaller_intervals.get(),
-            'max-reads-per-alignment-start': self.haplotypecaller_max_reads_per_alignment_start.get(),
-            'min-base-quality-score': self.haplotypecaller_min_base_quality_score.get(),
-            'native-pair-hmm-threads': self.haplotypecaller_native_pair_hmm_threads.get(),
-            'native-pair-hmm-use-double-precision': self.haplotypecaller_native_pair_hmm_use_double_precision.get(),
-            'num-reference-samples-if-no-call': self.haplotypecaller_num_reference_samples_if_no_call.get(),
-            'output-mode': self.haplotypecaller_output_mode.get(),
-            'pedigree': self.haplotypecaller_pedigree.get(),
-            'population-callset': self.haplotypecaller_population_callset.get(),
-            'sample-name': self.haplotypecaller_sample_name.get(),
-            'sample-ploidy': self.haplotypecaller_sample_ploidy.get(),
-            'sites-only-vcf-output': self.haplotypecaller_sites_only_vcf_output.get(),
-            'standard-min-confidence-threshold-for-calling': self.haplotypecaller_stand_call_conf.get(),
-            # SNV Extraction
-            'snv_output': self.snv_output.get(),
-            'cloud-index-prefetch-buffer': self.snv_cloud_index_prefetch_buffer.get(),
-            'cloud-prefetch-buffer': self.snv_cloud_prefetch_buffer.get(),
-            'concordance': self.snv_concordance.get(),
-            'disable-bam-index-caching': self.snv_disable_bam_index_caching.get(),
-            'discordance': self.snv_discordance.get(),
-            'exclude-filtered': self.snv_exclude_filtered.get(),
-            'exclude-ids': self.snv_exclude_ids.get(),
-            'exclude-non-variants': self.snv_exclude_non_variants.get(),
-            'exclude-sample-expressions': self.snv_exclude_sample_expressions.get(),
-            'exclude-sample-name': self.snv_exclude_sample_name.get(),
-            'gcs-max-retries': self.snv_gcs_max_retries.get(),
-            'interval-merging-rule': self.snv_interval_merging_rule.get(),
-            'intervals': self.snv_intervals.get(),
-            'invert-mendelian-violation': self.snv_invert_mendelian_violation.get(),
-            'invert-select': self.snv_invert_select.get(),
-            'keep-ids': self.snv_keep_ids.get(),
-            'keep-original-ac': self.snv_keep_original_ac.get(),
-            'keep-original-dp': self.snv_keep_original_dp.get(),
-            'max-filtered-genotypes': self.snv_max_filtered_genotypes.get(),
-            'max-fraction-filtered-genotypes': self.snv_max_fraction_filtered_genotypes.get(),
-            'max-indel-size': self.snv_max_indel_size.get(),
-            'max-nocall-fraction': self.snv_max_nocall_fraction.get(),
-            'max-nocall-number': self.snv_max_nocall_number.get(),
-            'mendelian-violation': self.snv_mendelian_violation.get(),
-            'mendelian-violation-qual-threshold': self.snv_mendelian_violation_qual_threshold.get(),
-            'min-filtered-genotypes': self.snv_min_filtered_genotypes.get(),
-            'min-fraction-filtered-genotypes': self.snv_min_fraction_filtered_genotypes.get(),
-            'min-indel-size': self.snv_min_indel_size.get(),
-            'pedigree': self.snv_pedigree.get(),
-            'preserve-alleles': self.snv_preserve_alleles.get(),
-            'remove-fraction-genotypes': self.snv_remove_fraction_genotypes.get(),
-            'remove-unused-alternates': self.snv_remove_unused_alternates.get(),
-            'restrict-alleles-to': self.snv_restrict_alleles_to.get(),
-            'sample-expressions': self.snv_sample_expressions.get(),
-            'sample-name': self.snv_sample_name.get(),
-            'select-random-fraction': self.snv_select_random_fraction.get(),
-            'select-type-to-exclude': self.snv_select_type_to_exclude.get(),
-            'select-type-to-include': self.snv_select_type_to_include.get(),
-            'select': self.snv_select_expressions.get(),
-            'set-filtered-gt-to-nocall': self.snv_set_filtered_gt_to_nocall.get(),
-            # Indel Extraction
-            'indel_output': self.indel_output.get(),
-            'cloud-index-prefetch-buffer': self.indel_cloud_index_prefetch_buffer.get(),
-            'cloud-prefetch-buffer': self.indel_cloud_prefetch_buffer.get(),
-            'concordance': self.indel_concordance.get(),
-            'disable-bam-index-caching': str(self.indel_disable_bam_index_caching.get()).lower(),
-            'discordance': self.indel_discordance.get(),
-            'exclude-filtered': str(self.indel_exclude_filtered.get()).lower(),
-            'exclude-ids': self.indel_exclude_ids.get(),
-            'exclude-non-variants': str(self.indel_exclude_non_variants.get()).lower(),
-            'exclude-sample-expressions': self.indel_exclude_sample_expressions.get(),
-            'exclude-sample-name': self.indel_exclude_sample_name.get(),
-            'gcs-max-retries': self.indel_gcs_max_retries.get(),
-            'interval-merging-rule': self.indel_interval_merging_rule.get(),
-            'intervals': self.indel_intervals.get(),
-            'invert-mendelian-violation': str(self.indel_invert_mendelian_violation.get()).lower(),
-            'invert-select': str(self.indel_invert_select.get()).lower(),
-            'keep-ids': self.indel_keep_ids.get(),
-            'keep-original-ac': str(self.indel_keep_original_ac.get()).lower(),
-            'keep-original-dp': str(self.indel_keep_original_dp.get()).lower(),
-            'max-filtered-genotypes': self.indel_max_filtered_genotypes.get(),
-            'max-fraction-filtered-genotypes': self.indel_max_fraction_filtered_genotypes.get(),
-            'max-indel-size': self.indel_max_indel_size.get(),
-            'max-nocall-fraction': self.indel_max_nocall_fraction.get(),
-            'max-nocall-number': self.indel_max_nocall_number.get(),
-            'mendelian-violation': str(self.indel_mendelian_violation.get()).lower(),
-            'mendelian-violation-qual-threshold': self.indel_mendelian_violation_qual_threshold.get(),
-            'min-filtered-genotypes': self.indel_min_filtered_genotypes.get(),
-            'min-fraction-filtered-genotypes': self.indel_min_fraction_filtered_genotypes.get(),
-            'min-indel-size': self.indel_min_indel_size.get(),
-            'pedigree': self.indel_pedigree.get(),
-            'preserve-alleles': str(self.indel_preserve_alleles.get()).lower(),
-            'remove-fraction-genotypes': self.indel_remove_fraction_genotypes.get(),
-            'remove-unused-alternates': str(self.indel_remove_unused_alternates.get()).lower(),
-            'restrict-alleles-to': self.indel_restrict_alleles_to.get(),
-            'sample-expressions': self.indel_sample_expressions.get(),
-            'sample-name': self.indel_sample_name.get(),
-            'select-random-fraction': self.indel_select_random_fraction.get(),
-            'select-type-to-exclude': self.indel_select_type_to_exclude.get(),
-            'select-type-to-include': self.indel_select_type_to_include.get(),
-            'select': self.indel_select_expressions.get(),
-            'set-filtered-gt-to-nocall': str(self.indel_set_filtered_gt_to_nocall.get()).lower(),
-            # CollectVariantCallingMetrics
-            'collectvariantcallingmetrics_output': self.collectvariantcallingmetrics_output.get(),
-            'collectvariantcallingmetrics_dbsnp': self.collectvariantcallingmetrics_dbsnp.get(),
-            'gvcf_input': self.collectvariantcallingmetrics_gvcf_input.get(),
-            'sequence_dictionary': self.collectvariantcallingmetrics_sequence_dictionary.get(),
-            'target_intervals': self.collectvariantcallingmetrics_target_intervals.get(),
-            'thread_count': self.collectvariantcallingmetrics_thread_count.get(),
-            # ANNOVAR
-            'database_directory': self.database_directory.get(),
-            'genome_build_version': self.genome_build_version.get(),
-            'output_prefix': self.output_prefix.get(),
-            'protocol': self.protocol.get(),
-            'operation': self.operation.get(),
-            'nastring': self.nastring.get(),
-            'nopolish': self.no_polish.get(),
-            'remove': self.remove_intermediate_files.get()
-        }
 
 
-        config_directory = os.path.join(os.path.dirname(__file__), 'configuration')
-        os.makedirs(config_directory, exist_ok=True)
-
-        with open(os.path.join(config_directory, 'tool_config.json'), 'w') as f:
-            json.dump(config, f, indent=4)
-
-        tk.messagebox.showinfo("Save Configuration", "Configuration saved successfully!")
-
-    def load_configuration(self):
-        config_path = os.path.join(os.path.dirname(__file__), 'configuration', 'tool_config.json')
-
-        if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-            # FastqToSam
-            self.sam_to_fastq_output.set(config['sam_to_fastq_output'])
-            self.sample_name.set(config['sample_name'])
-            self.platform.set(config['platform'])
-            self.read_group_name.set(config['read_group_name'])
-            self.library_name.set(config['library_name'])
-            self.description.set(config['description'])
-            self.fastqtosam_sort_order.set(config['sort_order'])
-            self.max_q.set(config['max_q'])
-            self.min_q.set(config['min_q'])
-            self.use_sequential_fastqs.set(config['use_sequential_fastqs'] == 'True')
-            self.allow_and_ignore_empty_lines.set(config['allow_and_ignore_empty_lines'] == 'True')
-            self.platform_model.set(config['platform_model'])
-            self.platform_unit.set(config['platform_unit'])
-            self.predicted_insert_size.set(config['predicted_insert_size'])
-            self.program_group.set(config['program_group'])
-            self.quality_format.set(config['quality_format'])
-            self.run_date.set(config['run_date'])
-            # MarkIlluminaAdapters
-            self.mark_illumina_metrics.set(config['mark_illumina_metrics'])
-            self.mark_illumina_output.set(config['mark_illumina_output'])
-            self.adapter_truncation_length.set(config['adapter_truncation_length'])
-            self.adapters.set(config['adapters'])
-            self.five_prime_adapter.set(config['five_prime_adapter'])
-            self.max_error_rate_pe.set(config['max_error_rate_pe'])
-            self.max_error_rate_se.set(config['max_error_rate_se'])
-            self.min_match_bases_pe.set(config['min_match_bases_pe'])
-            self.min_match_bases_se.set(config['min_match_bases_se'])
-            self.num_adapters_to_keep.set(config['num_adapters_to_keep'])
-            self.three_prime_adapter.set(config['three_prime_adapter'])
-            # SamToFastq
-            self.sam_to_fastq_output.set(config['sam_to_fastq_output'])
-            self.clipping_action.set(config['clipping_action'])
-            self.clipping_attribute.set(config['clipping_attribute'])
-            self.clipping_min_length.set(config['clipping_min_length'])
-            self.include_non_pf_reads.set(config['include_non_pf_reads'])
-            self.include_non_primary_alignments.set(config['include_non_primary_alignments'])
-            self.interleave.set(config['interleave'])
-            self.quality.set(config['quality'])
-            self.read1_max_bases_to_write.set(config['read1_max_bases_to_write'])
-            self.read1_trim.set(config['read1_trim'])
-            self.read2_max_bases_to_write.set(config['read2_max_bases_to_write'])
-            self.read2_trim.set(config['read2_trim'])
-            self.rg_tag.set(config['rg_tag'])
-            # BWA
-            self.index_algorithm.set(config['index_algorithm'])
-            self.threads.set(config['threads'])
-            # Create Sequence Dictionary
-            self.genome_assembly.set(config['genome_assembly'])
-            self.number_of_sequences.set(config['num_sequences'])
-            self.species.set(config['species'])
-            self.truncate_names_at_whitespace.set(config['truncate_names_at_whitespace'] == 'True')
-            self.uri.set(config['uri'])
-            # MergeBamAlignment
-            self.merge_align_bam_output.set(config['merge_align_bam_output'])
-            self.add_mate_cigar.set(config['add_mate_cigar'])
-            self.aligned_reads_only.set(config['aligned_reads_only'])
-            self.aligner_proper_pair_flags.set(config['aligner_proper_pair_flags'])
-            self.attributes_to_remove.set(config['attributes_to_remove'])
-            self.attributes_to_retain.set(config['attributes_to_retain'])
-            self.attributes_to_reverse.set(config['attributes_to_reverse'])
-            self.attributes_to_reverse_complement.set(config['attributes_to_reverse_complement'])
-            self.clip_adapters.set(config['clip_adapters'])
-            self.clip_overlapping_reads.set(config['clip_overlapping_reads'])
-            self.expected_orientations.set(config['expected_orientations'])
-            self.include_secondary_alignments.set(config['include_secondary_alignments'])
-            self.mergebamalignment_is_bisulfite_sequence.set(config['is_bisulfite_sequence'])
-            self.matching_dictionary_tags.set(config['matching_dictionary_tags'])
-            self.max_insertions_or_deletions.set(config['max_insertions_or_deletions'])
-            self.min_unclipped_bases.set(config['min_unclipped_bases'])
-            self.primary_alignment_strategy.set(config['primary_alignment_strategy'])
-            self.program_group_command_line.set(config['program_group_command_line'])
-            self.program_group_name.set(config['program_group_name'])
-            self.program_group_version.set(config['program_group_version'])
-            self.program_record_id.set(config['program_record_id'])
-            self.read1_aligned_bam.set(config['read1_aligned_bam'])
-            self.read1_trim.set(config['read1_trim'])
-            self.read2_aligned_bam.set(config['read2_aligned_bam'])
-            self.read2_trim.set(config['read2_trim'])
-            self.mergebamalignment_sort_order.set(config['sort_order'])
-            self.unmap_contaminant_reads.set(config['unmap_contaminant_reads'])
-            self.unmapped_read_strategy.set(config['unmapped_read_strategy'])
-            # SortSam For Merged BAM
-            self.sortsam_for_merged_bam_sort_order.set(config['sortsam_for_merged_bam_sort_order'])
-            self.sortsam_for_merged_bam_output.set(config['sortsam_for_merged_bam_output'])
-            self.sortsam_for_merged_bam_create_index.set(config['sortsam_for_merged_bam_create_index'])
-            self.sortsam_for_merged_bam_create_md5_file.set(config['sortsam_for_merged_bam_create_md5_file'])
-            # SetNmMdAndUqTags
-            self.setnmmduqtags_output.set(config['setnmmduqtags_output'])
-            self.setnmmduqtags_is_bisulfite_sequence.set(config['is_bisulfite_sequence'])
-            self.set_only_uq.set(config['set_only_uq'])
-            self.setnmmduqtags_create_index.set(config['create_index'])
-            self.setnmmduqtags_create_md5_file.set(config['create_md5_file'])
-            # MarkDuplicates
-            self.assume_sort_order.set(config['metrics_file'])
-            self.barcode_tag.set(config['mark_duplicates_output'])
-            self.assume_sort_order.set(config['assume_sort_order'])
-            self.barcode_tag.set(config['barcode_tag'])
-            self.clear_dt.set(config['clear_dt'])
-            self.markduplicates_comment.set(config['comment'])
-            self.duplicate_scoring_strategy.set(config['duplicate_scoring_strategy'])
-            self.max_file_handles_for_read_ends_map.set(config['max_file_handles_for_read_ends_map'])
-            self.max_optical_duplicate_set_size.set(config['max_optical_duplicate_set_size'])
-            self.max_sequences_for_disk_read_ends_map.set(config['max_sequences_for_disk_read_ends_map'])
-            self.optical_duplicate_pixel_distance.set(config['optical_duplicate_pixel_distance'])
-            self.program_group_command_line.set(config['program_group_command_line'])
-            self.program_group_name.set(config['program_group_name'])
-            self.program_group_version.set(config['program_group_version'])
-            self.program_record_id.set(config['program_record_id'])
-            self.read_name_regex.set(config['read_name_regex'])
-            self.read_one_barcode_tag.set(config['read_one_barcode_tag'])
-            self.read_two_barcode_tag.set(config['read_two_barcode_tag'])
-            self.sorting_collection_size_ratio.set(config['sorting_collection_size_ratio'])
-            self.tag_duplicate_set_members.set(config['tag_duplicate_set_members'])
-            self.tagging_policy.set(config['tagging_policy'])
-            self.markduplicates_create_index.set(config['create_index'])
-            self.markduplicates_create_md5_file.set(config['create_md5_file'])
-            # SortSam for Marked Duplicate BAM Process
-            self.sortsam_for_marked_duplicate_sort_order.set(config['sortsam_for_marked_duplicate_sort_order'])
-            self.sortsam_for_marked_duplicate_output.set(config['sortsam_for_marked_duplicate_output'])
-            self.sortsam_for_marked_duplicate_create_index.set(config['sortsam_for_marked_duplicate_create_index'])
-            self.sortsam_for_marked_duplicate_create_md5_file.set(config['sortsam_for_marked_duplicate_create_md5_file'])
-            # BaseRecalibrator
-            self.base_recal_output.set(config['base_recal_output'])
-            self.base_recal_known_sites.set(config['base_recal_known_sites'])
-            self.bqsr_baq_gap_open_penalty.set(config['bqsr-baq-gap-open-penalty'])
-            self.cloud_index_prefetch_buffer.set(config['cloud-index-prefetch-buffer'])
-            self.cloud_prefetch_buffer.set(config['cloud-prefetch-buffer'])
-            self.default_base_qualities.set(config['default-base-qualities'])
-            self.deletions_default_quality.set(config['deletions-default-quality'])
-            self.disable_bam_index_caching.set(config['disable-bam-index-caching'] == 'true')
-            self.gcs_max_retries.set(config['gcs-max-retries'])
-            self.indels_context_size.set(config['indels-context-size'])
-            self.insertions_default_quality.set(config['insertions-default-quality'])
-            self.interval_merging_rule.set(config['interval-merging-rule'])
-            self.intervals.set(config['intervals'])
-            self.low_quality_tail.set(config['low-quality-tail'])
-            self.maximum_cycle_value.set(config['maximum-cycle-value'])
-            self.mismatches_context_size.set(config['mismatches-context-size'])
-            self.mismatches_default_quality.set(config['mismatches-default-quality'])
-            self.preserve_qscores_less_than.set(config['preserve-qscores-less-than'])
-            self.quantizing_levels.set(config['quantizing-levels'])
-            self.use_original_qualities.set(config['use-original-qualities'] == 'true')
-            # ApplyBQSR
-            self.applybqsr_output.set(config['applybqsr_output'])
-            self.applybqsr_cloud_index_prefetch_buffer.set(config['cloud-index-prefetch-buffer'])
-            self.applybqsr_cloud_prefetch_buffer.set(config['cloud-prefetch-buffer'])
-            self.applybqsr_disable_bam_index_caching.set(config['disable-bam-index-caching'] == 'true')
-            self.applybqsr_emit_original_quals.set(config['emit-original-quals'] == 'true')
-            self.applybqsr_gcs_max_retries.set(config['gcs-max-retries'])
-            self.applybqsr_global_qscore_prior.set(config['global-qscore-prior'])
-            self.applybqsr_interval_merging_rule.set(config['interval-merging-rule'])
-            self.applybqsr_intervals.set(config['intervals'])
-            self.applybqsr_preserve_qscores_less_than.set(config['preserve-qscores-less-than'])
-            self.applybqsr_quantize_quals.set(config['quantize-quals'])
-            self.applybqsr_use_original_qualities.set(config['use-original-qualities'] == 'true')
-            # HaplotypeCaller
-            self.haplotypecaller_output.set(config['haplotypecaller_output'])
-            self.haplotypecaller_activity_profile_out.set(config['activity-profile-out'])
-            self.haplotypecaller_alleles.set(config['alleles'])
-            self.haplotypecaller_annotate_with_num_discovered_alleles.set(config['annotate-with-num-discovered-alleles'])
-            self.haplotypecaller_annotation.set(config['annotation'])
-            self.haplotypecaller_annotation_group.set(config['annotation-group'])
-            self.haplotypecaller_annotations_to_exclude.set(config['annotations-to-exclude'])
-            self.haplotypecaller_assembly_region_out.set(config['assembly-region-out'])
-            self.haplotypecaller_base_quality_score_threshold.set(config['base-quality-score-threshold'])
-            self.haplotypecaller_cloud_index_prefetch_buffer.set(config['cloud-index-prefetch-buffer'])
-            self.haplotypecaller_cloud_prefetch_buffer.set(config['cloud-prefetch-buffer'])
-            self.haplotypecaller_contamination_fraction_to_filter.set(config['contamination-fraction-to-filter'])
-            self.haplotypecaller_correct_overlapping_quality.set(config['correct-overlapping-quality'])
-            self.haplotypecaller_dbsnp.set(config['dbsnp'])
-            self.haplotypecaller_disable_bam_index_caching.set(config['disable-bam-index-caching'])
-            self.haplotypecaller_disable_sequence_dictionary_validation.set(
-                config['disable-sequence-dictionary-validation'])
-            self.haplotypecaller_founder_id.set(config['founder-id'])
-            self.haplotypecaller_gcs_max_retries.set(config['gcs-max-retries'])
-            self.haplotypecaller_gcs_project_for_requester_pays.set(config['gcs-project-for-requester-pays'])
-            self.haplotypecaller_graph_output.set(config['graph-output'])
-            self.haplotypecaller_heterozygosity.set(config['heterozygosity'])
-            self.haplotypecaller_heterozygosity_stdev.set(config['heterozygosity-stdev'])
-            self.haplotypecaller_indel_heterozygosity.set(config['indel-heterozygosity'])
-            self.haplotypecaller_interval_merging_rule.set(config['interval-merging-rule'])
-            self.haplotypecaller_intervals.set(config['intervals'])
-            self.haplotypecaller_max_reads_per_alignment_start.set(config['max-reads-per-alignment-start'])
-            self.haplotypecaller_min_base_quality_score.set(config['min-base-quality-score'])
-            self.haplotypecaller_native_pair_hmm_threads.set(config['native-pair-hmm-threads'])
-            self.haplotypecaller_native_pair_hmm_use_double_precision.set(
-                config['native-pair-hmm-use-double-precision'])
-            self.haplotypecaller_num_reference_samples_if_no_call.set(config['num-reference-samples-if-no-call'])
-            self.haplotypecaller_output_mode.set(config['output-mode'])
-            self.haplotypecaller_pedigree.set(config['pedigree'])
-            self.haplotypecaller_population_callset.set(config['population-callset'])
-            self.haplotypecaller_sample_name.set(config['sample-name'])
-            self.haplotypecaller_sample_ploidy.set(config['sample-ploidy'])
-            self.haplotypecaller_sites_only_vcf_output.set(config['sites-only-vcf-output'])
-            self.haplotypecaller_stand_call_conf.set(config['standard-min-confidence-threshold-for-calling'])
-            # SNV Extraction
-            self.snv_output.set(config['snv_output'])
-            self.snv_cloud_index_prefetch_buffer.set(config['cloud-index-prefetch-buffer'])
-            self.snv_cloud_prefetch_buffer.set(config['cloud-prefetch-buffer'])
-            self.snv_concordance.set(config['concordance'])
-            self.snv_disable_bam_index_caching.set(config['disable-bam-index-caching'])
-            self.snv_discordance.set(config['discordance'])
-            self.snv_exclude_filtered.set(config['exclude-filtered'])
-            self.snv_exclude_ids.set(config['exclude-ids'])
-            self.snv_exclude_non_variants.set(config['exclude-non-variants'])
-            self.snv_exclude_sample_expressions.set(config['exclude-sample-expressions'])
-            self.snv_exclude_sample_name.set(config['exclude-sample-name'])
-            self.snv_gcs_max_retries.set(config['gcs-max-retries'])
-            self.snv_interval_merging_rule.set(config['interval-merging-rule'])
-            self.snv_intervals.set(config['intervals'])
-            self.snv_invert_mendelian_violation.set(config['invert-mendelian-violation'])
-            self.snv_invert_select.set(config['invert-select'])
-            self.snv_keep_ids.set(config['keep-ids'])
-            self.snv_keep_original_ac.set(config['keep-original-ac'])
-            self.snv_keep_original_dp.set(config['keep-original-dp'])
-            self.snv_max_filtered_genotypes.set(config['max-filtered-genotypes'])
-            self.snv_max_fraction_filtered_genotypes.set(config['max-fraction-filtered-genotypes'])
-            self.snv_max_indel_size.set(config['max-indel-size'])
-            self.snv_max_nocall_fraction.set(config['max-nocall-fraction'])
-            self.snv_max_nocall_number.set(config['max-nocall-number'])
-            self.snv_mendelian_violation.set(config['mendelian-violation'])
-            self.snv_mendelian_violation_qual_threshold.set(config['mendelian-violation-qual-threshold'])
-            self.snv_min_filtered_genotypes.set(config['min-filtered-genotypes'])
-            self.snv_min_fraction_filtered_genotypes.set(config['min-fraction-filtered-genotypes'])
-            self.snv_min_indel_size.set(config['min-indel-size'])
-            self.snv_pedigree.set(config['pedigree'])
-            self.snv_preserve_alleles.set(config['preserve-alleles'])
-            self.snv_remove_fraction_genotypes.set(config['remove-fraction-genotypes'])
-            self.snv_remove_unused_alternates.set(config['remove-unused-alternates'])
-            self.snv_restrict_alleles_to.set(config['restrict-alleles-to'])
-            self.snv_sample_expressions.set(config['sample-expressions'])
-            self.snv_sample_name.set(config['sample-name'])
-            self.snv_select_random_fraction.set(config['select-random-fraction'])
-            self.snv_select_type_to_exclude.set(config['select-type-to-exclude'])
-            self.snv_select_type_to_include.set(config['select-type-to-include'])
-            self.snv_select_expressions.set(config['select'])
-            self.snv_set_filtered_gt_to_nocall.set(config['set-filtered-gt-to-nocall'])
-            # Indel Extraction
-            self.indel_output.set(config['indel_output'])
-            self.indel_cloud_index_prefetch_buffer.set(config['cloud-index-prefetch-buffer'])
-            self.indel_cloud_prefetch_buffer.set(config['cloud-prefetch-buffer'])
-            self.indel_concordance.set(config['concordance'])
-            self.indel_disable_bam_index_caching.set(config['disable-bam-index-caching'] == 'true')
-            self.indel_discordance.set(config['discordance'])
-            self.indel_exclude_filtered.set(config['exclude-filtered'] == 'true')
-            self.indel_exclude_ids.set(config['exclude-ids'])
-            self.indel_exclude_non_variants.set(config['exclude-non-variants'] == 'true')
-            self.indel_exclude_sample_expressions.set(config['exclude-sample-expressions'])
-            self.indel_exclude_sample_name.set(config['exclude-sample-name'])
-            self.indel_gcs_max_retries.set(config['gcs-max-retries'])
-            self.indel_interval_merging_rule.set(config['interval-merging-rule'])
-            self.indel_intervals.set(config['intervals'])
-            self.indel_invert_mendelian_violation.set(config['invert-mendelian-violation'] == 'true')
-            self.indel_invert_select.set(config['invert-select'] == 'true')
-            self.indel_keep_ids.set(config['keep-ids'])
-            self.indel_keep_original_ac.set(config['keep-original-ac'] == 'true')
-            self.indel_keep_original_dp.set(config['keep-original-dp'] == 'true')
-            self.indel_max_filtered_genotypes.set(config['max-filtered-genotypes'])
-            self.indel_max_fraction_filtered_genotypes.set(config['max-fraction-filtered-genotypes'])
-            self.indel_max_indel_size.set(config['max-indel-size'])
-            self.indel_max_nocall_fraction.set(config['max-nocall-fraction'])
-            self.indel_max_nocall_number.set(config['max-nocall-number'])
-            self.indel_mendelian_violation.set(config['mendelian-violation'] == 'true')
-            self.indel_mendelian_violation_qual_threshold.set(config['mendelian-violation-qual-threshold'])
-            self.indel_min_filtered_genotypes.set(config['min-filtered-genotypes'])
-            self.indel_min_fraction_filtered_genotypes.set(config['min-fraction-filtered-genotypes'])
-            self.indel_min_indel_size.set(config['min-indel-size'])
-            self.indel_pedigree.set(config['pedigree'])
-            self.indel_preserve_alleles.set(config['preserve-alleles'] == 'true')
-            self.indel_remove_fraction_genotypes.set(config['remove-fraction-genotypes'])
-            self.indel_remove_unused_alternates.set(config['remove-unused-alternates'] == 'true')
-            self.indel_restrict_alleles_to.set(config['restrict-alleles-to'])
-            self.indel_sample_expressions.set(config['sample-expressions'])
-            self.indel_sample_name.set(config['sample-name'])
-            self.indel_select_random_fraction.set(config['select-random-fraction'])
-            self.indel_select_type_to_exclude.set(config['select-type-to-exclude'])
-            self.indel_select_type_to_include.set(config['select-type-to-include'])
-            self.indel_select_expressions.set(config['select'])
-            self.indel_set_filtered_gt_to_nocall.set(config['set-filtered-gt-to-nocall'] == 'true')
-            # CollectVariantCallingMetrics
-            self.collectvariantcallingmetrics_output.set(config['collectvariantcallingmetrics_output'])
-            self.collectvariantcallingmetrics_dbsnp.set(config['collectvariantcallingmetrics_dbsnp'])
-            self.collectvariantcallingmetrics_gvcf_input.set(config['gvcf_input'])
-            self.collectvariantcallingmetrics_sequence_dictionary.set(config['sequence_dictionary'])
-            self.collectvariantcallingmetrics_target_intervals.set(config['target_intervals'])
-            self.collectvariantcallingmetrics_thread_count.set(config['thread_count'])
-            # ANNOVAR
-            self.database_directory.set(config['database_directory'])
-            self.genome_build_version.set(config['genome_build_version'])
-            self.output_prefix.set(config['output_prefix'])
-            self.protocol.set(config['protocol'])
-            self.operation.set(config['operation'])
-            self.nastring.set(config['nastring'])
-            self.no_polish.set(config['nopolish'])
-            self.remove_intermediate_files.set(config['remove'])
-        else:
-            tk.messagebox.showerror("Load Error", "No configuration file found.")
-        '''
     # Browsing function for ANNOVAR Database Directory
     def browse_annovar_db_directory(self, entry):
         # Open a directory selection dialog
@@ -2864,8 +2299,8 @@ class IssuesPage(tk.Frame):
         text_widget.insert("1.0", content)
         text_widget.configure(state="disabled")
 
+
     # Main Application Execution
 if __name__ == "__main__":
     app = SequenceAssemblyApp()
     app.mainloop()
-
