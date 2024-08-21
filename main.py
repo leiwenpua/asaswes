@@ -1,6 +1,5 @@
 import os
 import json
-import datetime
 import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext
