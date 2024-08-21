@@ -1,3 +1,7 @@
+'''
+THe python file that manage the command generation for each integrated tool
+'''
+
 import subprocess
 import os
 
