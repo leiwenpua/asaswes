@@ -62,8 +62,14 @@ The system orchestrates the following bioinformatics tools:
    python main.py
 
 2. MainPage: Set output directory and load FASTQ/Reference files.
+   <img width="728" height="508" alt="image" src="https://github.com/user-attachments/assets/81f9b76c-8f54-457f-9a44-32bc5d8fc350" />
+
 3. ConfigurationPage: Fine-tune tool arguments (e.g., Sample Name, Platform).
+   <img width="745" height="484" alt="image" src="https://github.com/user-attachments/assets/8c7a82b0-70dd-4d87-b40b-29cc611e85fd" />
+
 4. ProgramPage: Map tool executable paths.
+   <img width="784" height="500" alt="image" src="https://github.com/user-attachments/assets/869995d5-2893-437c-a7ca-bc7b7cd09cd8" />
+
 5. Run: Execute and monitor the progress.
 
 ### **Documentation**
